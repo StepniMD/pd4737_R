@@ -1,0 +1,93 @@
+---
+title: "Analiza danych RNA-seq"
+author: "Student Bioinformatyki"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Wprowadzenie
+
+Raport przedstawia analizę poziomów ekspresji genów z eksperymentu RNA-seq.
+Dane pochodzą z pliku `rna_seq_data.csv` i obejmują informacje o ekspresji genów
+w różnych warunkach eksperymentalnych.
+
+---
+
+## Wczytanie danych
+
+```{r wczytanie}
+library(dplyr)
+library(ggplot2)
+
+rna_data <- read.csv("rna_seq_data.csv", stringsAsFactors = FALSE)
+
+str(rna_data)
+head(rna_data)
+dim(rna_data)
+```
+
+---
+
+## Podstawowa analiza statystyczna
+
+```{r statystyki, echo=TRUE}
+cat("Średnia:", mean(rna_data$Expression_Level), "\n")
+cat("Mediana:", median(rna_data$Expression_Level), "\n")
+cat("Odchylenie standardowe:", sd(rna_data$Expression_Level), "\n")
+cat("Min:", min(rna_data$Expression_Level), "| Max:", max(rna_data$Expression_Level), "\n")
+print(quantile(rna_data$Expression_Level))
+```
+
+```{r statystyki_warunkowe, results="hide"}
+aggregate(Expression_Level ~ Condition, data = rna_data, FUN = mean)
+```
+
+---
+
+## Wizualizacja danych
+
+```{r histogram, fig.cap="Rozkład poziomów ekspresji genów"}
+ggplot(rna_data, aes(x = Expression_Level)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "white") +
+  labs(title = "Rozkład poziomów ekspresji genów",
+       x = "Poziom ekspresji", y = "Częstość") +
+  theme_minimal()
+```
+
+```{r volcano, echo=FALSE, fig.cap="Volcano plot – różnicowa ekspresja genów"}
+rna_data <- rna_data %>%
+  mutate(
+    minus_log10_p = -log10(P_value),
+    istotny = ifelse(Adjusted_P_value < 0.05 & abs(Log2FC) > 1, "Tak", "Nie")
+  )
+
+ggplot(rna_data, aes(x = Log2FC, y = minus_log10_p, color = istotny)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(values = c("Tak" = "red", "Nie" = "grey")) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "blue") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "blue") +
+  labs(title = "Volcano plot – analiza różnicowej ekspresji",
+       x = "Log2 fold change", y = "-log10(p-value)",
+       color = "Istotność") +
+  theme_minimal()
+```
+
+---
+
+## Podsumowanie
+
+**Kluczowe wnioski:**
+
+- Liczba genów istotnie zmienionych (adj. p < 0.05 i |Log2FC| > 1):
+  **`r sum(rna_data$Adjusted_P_value < 0.05 & abs(rna_data$Log2FC) > 1, na.rm = TRUE)`**
+- Średni poziom ekspresji: **`r round(mean(rna_data$Expression_Level), 2)`**
+- Zakres ekspresji: `r round(min(rna_data$Expression_Level), 2)` –
+  `r round(max(rna_data$Expression_Level), 2)`
